@@ -1,0 +1,1325 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>會議與個案紀錄管理</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root { --ink:#19352f; --muted:#667b73; --line:#dae5dc; --paper:#f5f7f2; }
+    * { box-sizing:border-box; }
+    body { font-family:'DM Sans','Noto Sans TC',sans-serif; color:var(--ink); background:#f5f7f2; margin:0; }
+    .app-wrapper { width:100%; min-height:100vh; background:radial-gradient(circle at 88% 0%,#e5efd6 0%,transparent 35%),#f5f7f2; }
+    .field { width:100%; border:1px solid var(--line); border-radius:12px; padding:10px 13px; background:#fff; color:var(--ink); font-size:15px; }
+    .field:focus, button:focus-visible, a:focus-visible { outline:3px solid #75a64b; outline-offset:2px; }
+    .field::placeholder { color:#82928a; }
+    .label { display:block; margin-bottom:7px; font-weight:600; font-size:15px; color:var(--ink); }
+    .surface { background:#fff; border:1px solid var(--line); box-shadow:0 8px 28px #1b3a2b0a; }
+    .stat-link {
+      display:block; width:100%; text-align:left; background:#fff; border:1px solid var(--line);
+      box-shadow:0 8px 28px #1b3a2b0a; cursor:pointer;
+      transition:transform .15s ease, border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+    }
+    .stat-link:hover { transform:translateY(-2px); border-color:#75a64b; box-shadow:0 12px 30px #1b3a2b14; }
+    .stat-link.is-active { border:2px solid #19352f; background:#f8fbf5; }
+    .stat-link:hover .stat-num { text-decoration:underline; text-underline-offset:5px; color:#295548; }
+    .action { background:var(--ink); color:#fff; border-radius:12px; padding:11px 18px; font-weight:700; transition:background .15s; }
+    .action:hover { background:#295548; }
+    button:disabled { opacity:.55; cursor:wait; }
+    .secondary { border:1px solid var(--line); border-radius:10px; padding:8px 13px; background:#fff; color:var(--ink); transition:background .15s; }
+    .secondary:hover { background:#f0f5ed; }
+    .record { animation:rise .3s ease both; }
+    @keyframes rise { from { opacity:0; transform:translateY(7px); } to { opacity:1; transform:translateY(0); } }
+    .pill { display:inline-flex; align-items:center; border-radius:999px; padding:4px 10px; font-size:12px; font-weight:700; }
+    .pill-open { background:#fff0d5; color:#75511e; }
+    .pill-done { background:#e2f2d7; color:#275d35; }
+    .pill-other { background:#e9eeec; color:#45615a; }
+    .pill-urgent { background:#fde8e8; color:#9b1c1c; }
+    .pill-high { background:#fef3c7; color:#92400e; }
+    .detail { white-space:pre-wrap; overflow-wrap:anywhere; }
+    [hidden] { display:none!important; }
+
+    /* 預覽與列印專用表格樣式 */
+    .record-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    .record-table th,
+    .record-table td {
+      border: 1px solid #9ab0a4;
+      padding: 8px 11px;
+      vertical-align: top;
+      word-break: break-word;
+    }
+    .record-table th {
+      width: 16%;
+      background-color: #f1f6ee;
+      color: #19352f;
+      font-weight: 700;
+      text-align: left;
+    }
+    .record-table td {
+      width: 34%;
+      background-color: #ffffff;
+      color: #19352f;
+    }
+    .record-table tr.row-tall td {
+      min-height: 64px;
+    }
+
+    @media(max-width:640px) {
+      .mobile-stack { flex-direction:column; align-items:stretch; }
+      .record-table th { width: 26%; padding: 6px 8px; font-size: 13px; }
+      .record-table td { width: 24%; padding: 6px 8px; font-size: 13px; }
+    }
+
+    /* 列印專用規則：徹底消除空白頁與捲軸，輸出乾淨 A4 表格 */
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 12mm 14mm;
+      }
+      html, body {
+        background: #ffffff !important;
+        height: auto !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      .app-wrapper, #editor, #cloud-modal, .no-print {
+        display: none !important;
+      }
+      #preview {
+        display: block !important;
+        position: static !important;
+        inset: auto !important;
+        width: 100% !important;
+        height: auto !important;
+        min-height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        background: #ffffff !important;
+        overflow: visible !important;
+      }
+      #preview .panel-box {
+        max-width: none !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        background: #ffffff !important;
+      }
+      #preview .preview-header {
+        padding: 0 0 10px 0 !important;
+        margin-bottom: 10px !important;
+        border-bottom: 2px solid #000000 !important;
+      }
+      #preview .preview-body {
+        padding: 0 !important;
+      }
+      .record-table th,
+      .record-table td {
+        border: 1px solid #333333 !important;
+        color: #000000 !important;
+        padding: 7px 9px !important;
+        font-size: 13.5px !important;
+      }
+      .record-table th {
+        background-color: #f2f4f3 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .record-table tr.meta-row {
+        break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-wrapper flex flex-col">
+    <!-- 頂部導覽列 -->
+    <header class="w-full border-b border-[#dce6db] text-white" style="background:#19352f;">
+      <div class="max-w-6xl mx-auto px-5 sm:px-8 py-4 flex flex-wrap items-center gap-3">
+        <div aria-hidden="true" class="w-9 h-9 rounded-xl bg-[#b9dd8b] text-[#19352f] grid place-items-center font-bold shrink-0">
+          紀
+        </div>
+        <span class="font-bold tracking-wide text-[15px]">行政工作台</span>
+        <span class="rounded-full border border-white/25 px-3 py-1 text-xs sm:text-sm">會議 × 個案</span>
+
+        <!-- 雲端同步控制列 -->
+        <div class="ml-auto flex items-center gap-2">
+          <span id="sync-badge" class="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs">
+            <span id="sync-dot" class="w-2 h-2 rounded-full bg-amber-300"></span>
+            <span id="sync-text">連線中...</span>
+          </span>
+          <button id="sync-now-btn" type="button" hidden class="rounded-lg border border-white/25 hover:bg-white/10 px-2.5 py-1 text-xs font-medium transition" title="立即從雲端重新載入最新紀錄">
+            ↻ 同步
+          </button>
+          <button id="open-cloud-btn" type="button" class="rounded-lg bg-[#b9dd8b] text-[#19352f] hover:bg-[#cae6a5] px-3 py-1 text-xs font-bold transition">
+            ☁️ 雲端設定
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- 主內容區 -->
+    <main class="max-w-6xl mx-auto w-full px-5 sm:px-8 py-9 sm:py-12 flex-1">
+      <section class="flex mobile-stack items-start sm:items-end justify-between gap-5 mb-8">
+        <div>
+          <p class="font-bold tracking-[.18em] mb-2 text-[15px]" style="color:#477348;">TEAM RECORDS / 工作紀錄</p>
+          <h1 class="font-bold leading-tight tracking-tight text-[30px]" style="color:#19352f;">每一項決議，都有跡可循。</h1>
+          <p class="mt-3 max-w-xl text-[15px]" style="color:#667b73;">集中整理會議重點、成員待辦與個案進度，支援跨電腦雲端同步，讓下一步隨時掌握。</p>
+        </div>
+        <button id="new-button" type="button" class="action shrink-0 text-[15px]">＋ 新增紀錄</button>
+      </section>
+
+      <!-- 可點擊篩選的統計卡片 -->
+      <section aria-label="紀錄統計" class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-7">
+        <button type="button" id="stat-card-all" data-filter-preset="" class="stat-link is-active rounded-2xl p-5 group">
+          <div class="flex items-center justify-between">
+            <p class="text-[15px]" style="color:#667b73;">全部紀錄</p>
+            <span class="text-xs font-semibold text-[#477348] opacity-75 group-hover:opacity-100">檢視全部 ↗</span>
+          </div>
+          <p id="count-all" class="stat-num text-3xl font-bold mt-2" aria-live="polite">0</p>
+        </button>
+
+        <button type="button" id="stat-card-open" data-filter-preset="OPEN" class="stat-link rounded-2xl p-5 group">
+          <div class="flex items-center justify-between">
+            <p class="text-[15px]" style="color:#667b73;">進行中 / 待處理</p>
+            <span class="text-xs font-semibold text-[#75511e] opacity-75 group-hover:opacity-100">篩選未結案 ↗</span>
+          </div>
+          <p id="count-open" class="stat-num text-3xl font-bold mt-2" aria-live="polite">0</p>
+        </button>
+
+        <button type="button" id="stat-card-done" data-filter-preset="已完成" class="stat-link rounded-2xl p-5 group">
+          <div class="flex items-center justify-between">
+            <p class="text-[15px]" style="color:#667b73;">已完成</p>
+            <span class="text-xs font-semibold text-[#275d35] opacity-75 group-hover:opacity-100">篩選已完成 ↗</span>
+          </div>
+          <p id="count-done" class="stat-num text-3xl font-bold mt-2" aria-live="polite">0</p>
+        </button>
+      </section>
+
+      <!-- 紀錄總覽與篩選 -->
+      <section aria-labelledby="list-heading">
+        <div class="flex mobile-stack justify-between items-end gap-4 mb-4">
+          <div>
+            <div class="flex flex-wrap items-center gap-2.5">
+              <h2 id="list-heading" class="font-bold text-[23px]" style="color:#19352f;">紀錄總覽</h2>
+              <span id="active-filter-badge" class="pill pill-other">全部狀態</span>
+            </div>
+            <p class="mt-1 text-[15px]" style="color:#667b73;">點選上方統計數字，或使用下方條件搜尋需要追蹤的事項。</p>
+          </div>
+          <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+            <div class="grow sm:w-56">
+              <label for="search" class="sr-only">搜尋紀錄</label>
+              <input id="search" class="field" type="search" placeholder="搜尋標題、內容、成員...">
+            </div>
+            <div>
+              <label for="filter-type" class="sr-only">類型篩選</label>
+              <select id="filter-type" class="field">
+                <option value="">所有類型</option>
+                <option value="會議">會議</option>
+                <option value="個案">個案</option>
+              </select>
+            </div>
+            <div>
+              <label for="filter-status" class="sr-only">狀態篩選</label>
+              <select id="filter-status" class="field">
+                <option value="">所有狀態</option>
+                <option value="OPEN">進行中 / 待處理</option>
+                <option value="待處理">僅待處理</option>
+                <option value="進行中">僅進行中</option>
+                <option value="已完成">已完成</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <p id="feedback" role="status" aria-live="polite" class="mb-4 text-sm font-semibold" hidden></p>
+        <div id="record-list" class="grid gap-4"></div>
+
+        <div id="empty" class="surface rounded-2xl text-center py-14 px-5" hidden>
+          <div aria-hidden="true" class="mx-auto mb-4 w-14 h-14 rounded-2xl bg-[#e8f1df] grid place-items-center text-2xl">✦</div>
+          <h3 class="font-bold text-[18px]" style="color:#19352f;">目前沒有符合的紀錄</h3>
+          <p class="mt-2 text-[15px]" style="color:#667b73;">試試調整搜尋條件，或點擊右上方新增紀錄。</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="max-w-6xl mx-auto px-5 sm:px-8 pb-8">
+      <p class="text-center text-[15px]" style="color:#667b73;">把討論整理成行動，把進度留在同一處。</p>
+    </footer>
+  </div>
+
+  <!-- 新增 / 編輯 Modal -->
+  <div id="editor" class="fixed inset-0 z-30 bg-[#12251ed1] p-3 sm:p-6 overflow-y-auto" hidden>
+    <div class="panel-box rounded-2xl max-w-2xl mx-auto my-3 sm:my-8 shadow-2xl bg-white">
+      <div class="p-5 sm:p-7 border-b border-[#dae5dc] flex items-start justify-between gap-4">
+        <div>
+          <h2 id="editor-title-new" class="font-bold text-[23px]" style="color:#19352f;">新增紀錄</h2>
+          <h2 id="editor-title-edit" class="font-bold text-[23px]" hidden style="color:#19352f;">編輯紀錄</h2>
+          <p class="mt-1 text-[15px]" style="color:#667b73;">將重點、想法與下一步清楚記錄下來。</p>
+        </div>
+        <button id="close-editor" type="button" class="secondary" aria-label="關閉表單">✕</button>
+      </div>
+
+      <form id="record-form" class="p-5 sm:p-7 grid sm:grid-cols-2 gap-5">
+        <div>
+          <label class="label" for="record-type">紀錄類型 *</label>
+          <select id="record-type" class="field" required>
+            <option value="會議">會議</option>
+            <option value="個案">個案</option>
+          </select>
+        </div>
+        <div>
+          <label class="label" for="record-date">紀錄日期 *</label>
+          <input id="record-date" class="field" type="date" required>
+        </div>
+        <div class="sm:col-span-2">
+          <label class="label" for="record-title">標題 *</label>
+          <input id="record-title" class="field" type="text" maxlength="120" placeholder="例如：十月行政例會、特教評鑑協調會" required>
+        </div>
+        <div>
+          <label class="label" for="record-chairperson">主持人</label>
+          <input id="record-chairperson" class="field" type="text" maxlength="120">
+        </div>
+        <div>
+          <label class="label" for="record-assignee">承辦人</label>
+          <input id="record-assignee" class="field" type="text" maxlength="120">
+        </div>
+        <div>
+          <label class="label" for="record-location">會議地點</label>
+          <input id="record-location" class="field" type="text" maxlength="200">
+        </div>
+        <div>
+          <label class="label" for="record-meeting-time">會議時間</label>
+          <input id="record-meeting-time" class="field" type="time">
+        </div>
+        <div class="sm:col-span-2">
+          <label class="label" for="record-participants">與會成員／相關人員</label>
+          <input id="record-participants" class="field" type="text" maxlength="300" placeholder="以逗號分隔姓名">
+        </div>
+        <div class="sm:col-span-2">
+          <label class="label" for="record-content">討論內容／個案摘要與個人想法</label>
+          <textarea id="record-content" class="field min-h-28" maxlength="5000"></textarea>
+        </div>
+        <div class="sm:col-span-2">
+          <label class="label" for="record-decisions">決議與後續事項</label>
+          <textarea id="record-decisions" class="field min-h-24" maxlength="5000"></textarea>
+        </div>
+        <div>
+          <label class="label" for="record-due">預計完成日期</label>
+          <input id="record-due" class="field" type="date">
+        </div>
+        <div>
+          <label class="label" for="record-status">狀態</label>
+          <select id="record-status" class="field">
+            <option value="待處理">待處理</option>
+            <option value="進行中">進行中</option>
+            <option value="已完成">已完成</option>
+          </select>
+        </div>
+        <div>
+          <label class="label" for="record-priority">優先程度</label>
+          <select id="record-priority" class="field">
+            <option value="一般">一般</option>
+            <option value="重要">重要</option>
+            <option value="緊急">緊急</option>
+          </select>
+        </div>
+        <div class="sm:col-span-2">
+          <label class="label" for="record-notes">追蹤備註</label>
+          <textarea id="record-notes" class="field min-h-20" maxlength="3000"></textarea>
+        </div>
+
+        <div id="abandon-confirmation" class="sm:col-span-2 rounded-xl border border-[#e8c9a8] bg-[#fff8ed] p-4" hidden>
+          <p class="font-semibold text-[15px]" style="color:#75511e;">確定放棄目前尚未儲存的內容？</p>
+          <div class="flex justify-end gap-2 mt-3">
+            <button id="keep-editor" type="button" class="secondary">繼續編輯</button>
+            <button id="confirm-abandon" type="button" class="action">確認放棄</button>
+          </div>
+        </div>
+
+        <div class="sm:col-span-2 flex justify-end gap-3 pt-2">
+          <button id="abandon-editor" type="button" class="secondary font-semibold" style="color:#a13e32;">放棄儲存</button>
+          <button id="cancel-editor" type="button" class="secondary">取消</button>
+          <button id="save-button" type="submit" class="action">儲存紀錄</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 表格化預覽與列印 Modal -->
+  <div id="preview" class="fixed inset-0 z-30 bg-[#12251ed1] p-3 sm:p-6 overflow-y-auto" hidden>
+    <div class="panel-box rounded-2xl max-w-4xl mx-auto my-3 sm:my-8 shadow-2xl bg-white">
+      <div class="preview-header p-5 sm:p-7 border-b border-[#dae5dc] flex items-center justify-between gap-4">
+        <div>
+          <p class="text-xs font-bold tracking-widest text-[#477348] mb-0.5">行政工作台｜工作紀錄單</p>
+          <h2 id="preview-doc-heading" class="font-bold text-[22px]" style="color:#19352f;">會議與個案紀錄單</h2>
+        </div>
+        <div class="flex items-center gap-2 no-print">
+          <button id="print-preview" type="button" class="action text-sm py-2 px-4">🖨️ 列印 / 存成 PDF</button>
+          <button id="close-preview" type="button" class="secondary" aria-label="關閉預覽">✕</button>
+        </div>
+      </div>
+
+      <div class="preview-body p-5 sm:p-7">
+        <table class="record-table">
+          <tbody>
+            <tr class="meta-row">
+              <th>標題</th>
+              <td colspan="3" id="preview-record-title" class="font-bold text-base"></td>
+            </tr>
+            <tr class="meta-row">
+              <th>紀錄類型</th>
+              <td id="preview-type"></td>
+              <th>紀錄日期</th>
+              <td id="preview-date"></td>
+            </tr>
+            <tr class="meta-row">
+              <th>主持人</th>
+              <td id="preview-chairperson"></td>
+              <th>承辦人</th>
+              <td id="preview-assignee"></td>
+            </tr>
+            <tr class="meta-row">
+              <th>會議地點</th>
+              <td id="preview-location"></td>
+              <th>會議時間</th>
+              <td id="preview-time"></td>
+            </tr>
+            <tr class="meta-row">
+              <th>辦理狀態</th>
+              <td><span id="preview-status"></span>（<span id="preview-priority"></span>）</td>
+              <th>預計完成</th>
+              <td id="preview-due"></td>
+            </tr>
+            <tr class="meta-row">
+              <th>與會成員</th>
+              <td colspan="3" id="preview-participants" class="detail"></td>
+            </tr>
+            <tr class="row-tall">
+              <th>討論內容<br>／摘要</th>
+              <td colspan="3" id="preview-content" class="detail"></td>
+            </tr>
+            <tr class="row-tall">
+              <th>決議與<br>後續事項</th>
+              <td colspan="3" id="preview-decisions" class="detail"></td>
+            </tr>
+            <tr id="preview-notes-row">
+              <th>追蹤備註</th>
+              <td colspan="3" id="preview-notes" class="detail"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- 雲端同步與備份設定 Modal -->
+  <div id="cloud-modal" class="fixed inset-0 z-40 bg-[#12251ed1] p-3 sm:p-6 overflow-y-auto" hidden>
+    <div class="panel-box rounded-2xl max-w-lg mx-auto my-8 shadow-2xl bg-white">
+      <div class="p-5 sm:p-6 border-b border-[#dae5dc] flex items-center justify-between">
+        <div>
+          <h2 class="font-bold text-xl" style="color:#19352f;">☁️ 跨電腦雲端同步設定</h2>
+          <p class="text-sm mt-1" style="color:#667b73;">已綁定 Firebase Realtime Database，不同電腦即開即用</p>
+        </div>
+        <button id="close-cloud" type="button" class="secondary">✕</button>
+      </div>
+      <div class="p-5 sm:p-6 space-y-4">
+        <div>
+          <label class="label" for="cloud-url">Firebase Database 網址</label>
+          <input id="cloud-url" type="url" class="field" placeholder="https://rixin-records-default-rtdb.asia-southeast1.firebasedatabase.app/">
+        </div>
+        <div>
+          <label class="label" for="cloud-path">專屬資料節點名稱（需與安全規則名稱一致）</label>
+          <input id="cloud-path" type="text" class="field" placeholder="rixin_meeting_records">
+        </div>
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#dae5dc]">
+          <button id="disconnect-cloud" type="button" class="text-sm font-semibold hover:underline" style="color:#a13e32;">中斷雲端（改存本機）</button>
+          <div class="flex gap-2">
+            <button id="cancel-cloud" type="button" class="secondary text-sm">取消</button>
+            <button id="save-cloud" type="button" class="action text-sm">儲存並立即同步</button>
+          </div>
+        </div>
+        <div class="pt-4 border-t border-[#dae5dc] flex flex-wrap items-center justify-between gap-2 text-sm">
+          <span style="color:#667b73;">資料工具：</span>
+          <div class="flex flex-wrap gap-2">
+            <button id="restore-initial" type="button" class="secondary text-xs font-semibold">重載內建 19 筆資料</button>
+            <button id="export-json" type="button" class="secondary text-xs font-semibold">匯出 JSON</button>
+            <label class="secondary text-xs font-semibold cursor-pointer">
+              匯入 JSON
+              <input id="import-json" type="file" accept=".json" class="hidden">
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 單筆紀錄卡片模板 -->
+  <template id="record-template">
+    <article class="record surface rounded-2xl p-5 sm:p-6" data-record-id="">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="flex flex-wrap gap-2 mb-2">
+            <span class="pill pill-other" data-field="type"></span>
+            <span class="pill pill-other" data-field="status"></span>
+            <span class="pill pill-other" data-field="priority"></span>
+          </div>
+          <h3 class="font-bold text-lg break-words" data-field="title"></h3>
+          <p class="mt-1.5 text-sm" style="color:#667b73;" data-field="meta"></p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" class="secondary text-sm" data-action="edit">編輯</button>
+          <button type="button" class="secondary text-sm" data-action="preview">預覽</button>
+          <button type="button" class="secondary text-sm" data-action="print">列印</button>
+          <button type="button" class="secondary text-sm" data-action="delete">刪除</button>
+        </div>
+      </div>
+      <div class="grid sm:grid-cols-2 gap-4 mt-5 pt-4 border-t border-[#e5ece4] text-[15px]">
+        <div data-block="content">
+          <p class="font-semibold mb-1 text-sm" style="color:#477348;">討論／摘要與想法</p>
+          <p class="detail" data-field="content"></p>
+        </div>
+        <div data-block="decisions">
+          <p class="font-semibold mb-1 text-sm" style="color:#477348;">決議／後續事項</p>
+          <p class="detail" data-field="decisions"></p>
+        </div>
+        <div data-block="notes" class="sm:col-span-2">
+          <p class="font-semibold mb-1 text-sm" style="color:#477348;">追蹤備註</p>
+          <p class="detail" data-field="notes"></p>
+        </div>
+      </div>
+      <div class="mt-4 rounded-xl bg-[#f5f8f2] p-3 flex flex-wrap gap-x-5 gap-y-1 text-sm" style="color:#45615a;">
+        <span data-field="assignee"></span>
+        <span data-field="due"></span>
+        <span data-field="location"></span>
+        <span data-field="meeting_time"></span>
+        <span data-field="chairperson"></span>
+      </div>
+      <div data-confirm class="mt-4 border-t border-[#e5ece4] pt-4 flex flex-wrap items-center gap-2" hidden>
+        <span class="font-semibold mr-auto text-sm" style="color:#a13e32;">確定刪除此筆紀錄？</span>
+        <button type="button" class="secondary text-sm" data-action="cancel-delete">保留紀錄</button>
+        <button type="button" class="action text-sm" data-action="confirm-delete">確認刪除</button>
+      </div>
+    </article>
+  </template>
+
+  <script>
+    // =========================================================================
+    // 已綁定你的 Firebase Realtime Database 網址與專屬資料節點
+    // =========================================================================
+    const FIREBASE_DB_URL = 'https://rixin-records-default-rtdb.asia-southeast1.firebasedatabase.app/';
+    const FIREBASE_NODE_PATH = 'rixin_meeting_records';
+    // =========================================================================
+
+    const DEFAULT_CLOUD_CONFIG = {
+      url: FIREBASE_DB_URL,
+      path: FIREBASE_NODE_PATH
+    };
+
+    // ====== 內建原始 19 筆完整紀錄 ======
+    const INITIAL_RECORDS = [
+      {
+        id: "rec_init_01",
+        record_type: "會議",
+        status: "待處理",
+        priority: "一般",
+        title: "主管會議",
+        date: "2026-11-23",
+        participants: "各處室主任（不含人事）",
+        content: "1. 金鑽獎獲獎訊息 PO 臉書。\n2. 週五下午投開票所佈置，通知潛能班。\n3. 備課第三天的轉入生會議是否要辦理？\n4. 法定研習時數，線上研習關鍵字。\n5. 校務會議簡報給校長彙整\n6. 旺年會決議 1/25(已通知會長)\n7. 交接典禮的時間預計在 12/9(已通知會長)\n8. 蔡生特教助理員 16 小時不得統籌運用。",
+        decisions: "",
+        notes: "",
+        assignee: "",
+        due_date: "",
+        location: "校長室",
+        meeting_time: "09:00",
+        chairperson: "校長",
+        created_at: "2026-11-23T09:00:00.000Z"
+      },
+      {
+        id: "rec_init_02",
+        record_type: "會議",
+        status: "待處理",
+        priority: "一般",
+        title: "專輔討論 506 林生問題",
+        date: "2026-11-19",
+        participants: "專輔謦瑋",
+        content: "1. 導師希望透過專輔詢問林生上課為何時常有分心的狀況。專輔透過個輔詢問林生，林生表示體表會大隊接力壓力大，讓他需要透過屏蔽外界訊息來逃避焦慮。回覆導師後，導師卻對該生表示失望。\n2. 另專輔透過與林生晤談後發現，該生因焦慮情況很嚴重，常透過長時間的洗手來減緩焦慮，有強迫行為。需持續觀察。\n3. 該生也有些潔癖。",
+        decisions: "請專輔持續觀察該生，並提供必要的協助。",
+        notes: "",
+        assignee: "",
+        due_date: "",
+        location: "輔導室",
+        meeting_time: "15:30",
+        chairperson: "輔導主任",
+        created_at: "2026-11-19T15:30:00.000Z"
+      },
+      {
+        id: "rec_init_03",
+        record_type: "會議",
+        status: "待處理",
+        priority: "一般",
+        title: "與503師討論毛碩源於班級狀況",
+        date: "2026-11-19",
+        participants: "503導師楊家恩",
+        content: "1.毛生家長與資優班導師提及導師因毛生在班級發生不當行為，其他家長與導師投訴時，導師直接將其他家長的訊息直接轉貼毛生家長，讓毛生家長不舒服。\n2.毛生近期兩件不當行為事件為：\n2-1玩橡皮筋對牆壁射，隔壁班導師見狀，告知如果射到眼睛後果不堪設想。但卻有同學返家告知家長毛生直接對同學眼睛射橡皮筋，讓家長投訴導師。\n2-2因同學說毛生不對，毛生向前勒該生脖子。\n3.毛生日前因不當行為導致導師憤怒，將椅子砸向前門。\n4.老師禁止班上同學不得攜帶餅乾到校，毛生直接反嗆導師是否連老師的獎勵品餅乾都應該收起來，導致班上同學不滿。",
+        decisions: "1.針對不當行為請導師釐清事情，並告知毛生及班上同學，不要再有不當行為。\n2.若導師有需要輔導室協助之處，請告知輔導室。\n3.持續關注毛生行為。",
+        notes: "",
+        assignee: "",
+        due_date: "",
+        location: "503教室",
+        meeting_time: "14:30",
+        chairperson: "輔導主任",
+        created_at: "2026-11-19T14:30:00.000Z"
+      },
+      {
+        id: "rec_init_04",
+        record_type: "會議",
+        status: "待處理",
+        priority: "一般",
+        title: "與506師討論林奈澪(個案:學障)體表會大隊接力請假事件",
+        date: "2026-11-19",
+        participants: "506導師簡靖樺",
+        content: "1.林生體表會因疑似流感須請假。導師因需請假及校安通報與家長索取藥袋或證明書，家長與個管師蔡翊暄表示導師不信任學生。\n2.家長：林生過去大隊接力被同學說跑太慢，導致心裡難過。\n3.家長：導師對林生課業要求須跟上班級進度。\n4.家長：導師要林生自行對同學解釋為何沒參加大隊接力。",
+        decisions: "1.導師：林生被同學說跑太慢是四年級的事情，並非5年級。\n2.導師：功課很少，也未有和家長提及需跟上班級進度。有和家長說如班級功課太多，請由潛能班自行刪減功課。\n3.導師：僅和林生說若有同學問及為何體表會未到校，須自己解釋讓同學了解。\n4.家長希望與導師進行談話，建議留有文字紀錄，或直接到輔導室進行晤談，避免兩人私下談話。",
+        notes: "",
+        assignee: "",
+        due_date: "",
+        location: "506教室",
+        meeting_time: "11:00",
+        chairperson: "輔導主任",
+        created_at: "2026-11-19T11:00:00.000Z"
+      },
+      {
+        id: "rec_init_05",
+        record_type: "會議",
+        status: "待處理",
+        priority: "一般",
+        title: "杏壇芬芳獎推薦資料撰稿人",
+        date: "2026-11-18",
+        participants: "",
+        content: "1. 以教育為本的觀察及真摯的還原\n2. 不要流水帳、冰冷公文語氣、沒有臉的主角。\n3. 具體的行為及生活場景\n4. 塑造立體感、尋找反差。\n5. 跨越數字，看見難處。跨越業務，看見關係。跨越世代的守護格局。\n6. 有溫度的故事，參與其中、收集素材\n7. 有感人的事蹟\n8. 有教育的理念\n9. 有傳承的價值\n10. 推薦事蹟標題很重要\n11. 不僅質性描述、也要量化描述、撰稿還有照片\n12. 是否獲得校內的支持（照片蒐集、課程主題），是否能成為全國的模範（報導或新聞稿）。\n13. 從學生、教師、家長、志工各方面來討論\n14. 對未來仍有目標，得獎不是重點\n15.注意事項\n由於每年教育部杏壇獎規定會有微調，相關規定待教育部來函後會再函發至各校，屆時再請各校依公文內容準備繳交資料事蹟撰寫相關規定：\n請分項條列，並以清楚文字敘明教育理念、具體感人事蹟（綠由、歷程、成果）、影響等。若有學生或家長回饋、推薦函等，亦可作為佐證資料。\n二、字型：標楷體、字體大小：12、行距：單行閒距。\n三、具體感人事蹟之內文及附件佐證資料，以A4紙張雙面列印，合計未超過\n15頁（不含封面與封底）。\n四、尊重個資，學生姓名以化名呈現。\n\nhttps://docs.google.com/spreadsheets/d/1BmldR-23YNfK2zq6EetKrkrIkQyYfwF3/edit?usp=sharing&ouid=112264147418798199230&rtpof=true&sd=true",
+        decisions: "",
+        notes: "",
+        assignee: "",
+        due_date: "",
+        location: "中山國中",
+        meeting_time: "14:30",
+        chairperson: "",
+        created_at: "2026-11-18T14:30:00.000Z"
+      },
+      {
+        id: "rec_init_06",
+        record_type: "會議",
+        status: "待處理",
+        priority: "重要",
+        title: "特教鑑定說明會",
+        date: "2026-11-18",
+        participants: "",
+        content: "1. 梳理自評表（重點）\n2.3 個學期的課表、特需表、助理員課表\n3. 每位老師一份 IEP、IGP\n4. IEP先挑選雙特學生、錯開障別、符應最多自評表指標\n5.IGP先挑選雙特學生、符應最多自評表指標、若學生只有 114 接受服務，老師再擇一位 115 學生資料上傳\n6.PPT 模板、依指標製作、照片、文字、遮罩學生臉及姓名\n7. 系統新增帳號（承辦人、主任、校長或其他人）\n8. 填寫時請務必隨時存檔\n9. 填寫完畢勾選後 才會幫忙檢核內容是否完成填寫\n10. 共用檔案上傳功能，例如 IEP 或 IGP 上傳後可以運用到各指標。指標頁會自動出現。\n11.",
+        decisions: "",
+        notes: "",
+        assignee: "",
+        due_date: "2027-05-07",
+        location: "大直國小",
+        meeting_time: "08:30",
+        chairperson: "民族國小校長吳政哲",
+        created_at: "2026-11-18T08:30:00.000Z"
+      },
+      {
+        id: "rec_init_07",
+        record_type: "個案",
+        status: "待處理",
+        priority: "一般",
+        title: "506林奈澪因病請假，導師向家長索取診斷證明書佐證請假原因",
+        date: "2026-11-17",
+        participants: "",
+        content: "1.506林奈澪因病請假，導師向家長索取診斷證明書佐證請假原因\n2.該生未達中輟條件，且家長均有向導師請假。\n3.",
+        decisions: "",
+        notes: "",
+        assignee: "",
+        due_date: "",
+        location: "",
+        meeting_time: "",
+        chairperson: "",
+        created_at: "2026-11-17T09:00:00.000Z"
+      },
+      {
+        id: "rec_init_08",
+        record_type: "會議",
+        status: "待處理",
+        priority: "一般",
+        title: "115-1 社團委員會",
+        date: "2026-11-13",
+        participants: "教務主任、學務主任、訓育組、家長會長、家長委員",
+        content: "1. 進階社團仍維持開辦。\n2.檢視每天社團人數，來決定是否開辦新社團。\n3.建議社團老師以有經驗為主。\n4.檢視社團材料費，以家庭能負擔為主。",
+        decisions: "",
+        notes: "",
+        assignee: "訓育組",
+        due_date: "",
+        location: "會議室二",
+        meeting_time: "13:30",
+        chairperson: "校長",
+        created_at: "2026-11-13T13:30:00.000Z"
+      },
+      {
+        id: "rec_init_09",
+        record_type: "會議",
+        status: "待處理",
+        priority: "緊急",
+        title: "輔特領域",
+        date: "2026-11-11",
+        participants: "輔特領域",
+        content: "近期重點關心個案名單\n潛能班 / 特教個案：105 蕭弋凱、404 蔡承叡、602 張峻得、605 鄭家莨。\n轉介個案：103 洪梓喬、304 梁宸碩\n資優：404 張丞懿、503 毛碩源、605 賴佑宸\n輔導班級：605 班級\n\n會議討論重點\n希望透過跨角色的合作，達成以下兩個核心目標：\n1.穩定課堂與班級常規，降低個案對普通班課堂秩序的衝擊。\n2.提供任課教師實務支援與「個案突發狀況應對指引」，讓導師及專任教師在教學時有更強的後盾與明確方向。",
+        decisions: "",
+        notes: "",
+        assignee: "鄭浩宇",
+        due_date: "",
+        location: "資優教室三",
+        meeting_time: "15:15",
+        chairperson: "輔導主任",
+        created_at: "2026-11-11T15:15:00.000Z"
+      },
+      {
+        id: "rec_init_10",
+        record_type: "會議",
+        status: "待處理",
+        priority: "一般",
+        title: "蕭弋凱個案會議",
+        date: "2026-11-11",
+        participants: "學務主任、教學組、特教組、輔導組、潛能班林家如、吳雅惠、游皓鈞、導師靜玫",
+        content: "1. 針對蕭生情緒高漲處理 SOP。\n2. 協助教師順序：個管師、導師、輔導室、學務處、教務處、總務處。\n3. 通知家長、進行校安通報。\n4. 持續申請全時助理員。",
+        decisions: "",
+        notes: "",
+        assignee: "潛能班",
+        due_date: "",
+        location: "潛能班三",
+        meeting_time: "13:30",
+        chairperson: "輔導主任",
+        created_at: "2026-11-11T13:30:00.000Z"
+      },
+      {
+        id: "rec_init_11",
+        record_type: "會議",
+        status: "已完成",
+        priority: "一般",
+        title: "本土語訪視",
+        date: "2026-11-11",
+        participants: "四處室主任",
+        content: "許嘉勇委員：本土語政策推動方向應該是正確。新住民語言前七名非都南向政策國家，目前日韓新住民也越來越多。最好是實體授課。師資來源，除非真的該類族群學生，不然公開徵選 3 次即可，無須強求。\n白紫委員：族語可以邀請家長一起認證。全民原教的知識正義。請教務處多多申請各種專案\n吳婉菁委員：鐘點費可以編入預算，不建議中午授課。老師可以雙腔同時授課。手語的學生比本土語學生還多，建議回歸到本土語課程。",
+        decisions: "",
+        notes: "",
+        assignee: "教務處",
+        due_date: "2026-11-11",
+        location: "會議室二",
+        meeting_time: "11:00",
+        chairperson: "訪視委員",
+        created_at: "2026-11-11T11:00:00.000Z"
+      },
+      {
+        id: "rec_init_12",
+        record_type: "會議",
+        status: "待處理",
+        priority: "一般",
+        title: "主管會議",
+        date: "2026-11-09",
+        participants: "各處室主任（不含人事）",
+        content: "1. 每月一星：品德標竿學校。應該要切合課程、融入及宣導。\n2. 教育 111 獎勵金，做異地備課。\n3. 全校教職員會議 1430 辦理，建議個案會議往前。\n4. 全校獲獎名單、志工得獎名單等給校長參考。星期四以前給校長\n5. 除個案關心外，請持續關心 503 楊家恩老師。",
+        decisions: "1.個案會議移至1330召開。",
+        notes: "",
+        assignee: "",
+        due_date: "",
+        location: "校長室",
+        meeting_time: "09:00",
+        chairperson: "校長",
+        created_at: "2026-11-09T09:00:00.000Z"
+      },
+      {
+        id: "rec_init_13",
+        record_type: "個案",
+        status: "待處理",
+        priority: "一般",
+        title: "404王梓恩家長來電詢問蔡承叡不當行為校方處置方式",
+        date: "2026-11-06",
+        participants: "404王梓恩家長",
+        content: "1.404於訓練趣味競賽時，王梓恩與蔡承叡發生碰撞，導致兩生發生口角。\n2.兩人互有口角，因過程中提及要將對方家長送進屠宰場，蔡生說出要將王生家長全家殺光的言語。\n3.導師於11/5(四)已針對該案召集相關學生釐清當時情況。\n4.王梓恩家長表示該生於班上常有脫序行為，三年級有全時助理員，為何本學期沒有，並表達目前僅以口頭威脅同學，難以保證是否會有其他更激烈的行為。\n5.職與家長表示目前以專案方式申請全時助理員，待局裡回覆，目前仍有助理員在旁留意班上及該生行為。班上也請導師多多留意，職與其他主任或同仁也會常至該班巡視，請家長放心。\n6.導師已與蔡生家長聯繫，希望蔡生家長在家多叮嚀蔡生不要再出現如此不當行為。\n7.王生家長表示能理解學校的處理方式，但仍希望校方針對蔡生可有更積極的處理。\n8.導師與蔡生家長連繫時，蔡生家長告知導師：蔡生於校外玩具店發生有偷竊寶可夢卡包的情事，玩具店長要與蔡生求償2萬元，蔡生家長目前仍與店家持續處理此案。",
+        decisions: "",
+        notes: "",
+        assignee: "",
+        due_date: "",
+        location: "來電",
+        meeting_time: "15:00",
+        chairperson: "陳建志",
+        created_at: "2026-11-06T15:00:00.000Z"
+      },
+      {
+        id: "rec_init_14",
+        record_type: "個案",
+        status: "待處理",
+        priority: "一般",
+        title: "巡堂時見605孫慬行為不當並與該生談話",
+        date: "2026-11-05",
+        participants: "與他身後的同學",
+        content: "1.與同學在老師檢討考卷時玩玩具，被老師制止後，一再頂嘴。職路過班級，老師至走廊告知此事，職請兩位同學在教室外走廊晤談。\n2.班上多位同學假借打針後要多喝水的理由，到外裝水。有3位同學(陳品逸等）到活動中文2樓，甚至更遠的旺台樓裝水。過程超過10分鐘。\n3.孫生與職談話過程十分無禮，且常會頂撞。藉口耳朵聽不到，轉身僅以右耳聽，並且回話。詢問為何上課玩玩具，回說不是上課，是檢討考卷。為何玩玩具，回說並非玩玩具，而是把玩具拿出來。諸多利用言語左右其他情事。\n4.詢問至下課時，因該生十分注意他人的眼光，常左右看其他同學，深怕丟臉。因此職將該生帶至樓梯間說話。過程對談情況逐漸正常，且該生開始落淚。\n5.職請該生回到班上時，不要再頂撞老師，在每次想要回話時，留意回話內容。過程大約談話15-20分鐘，即讓該生離開。",
+        decisions: "持續關心605班級狀況。",
+        notes: "",
+        assignee: "陳建志",
+        due_date: "",
+        location: "605教室外",
+        meeting_time: "15:00",
+        chairperson: "",
+        created_at: "2026-11-05T15:00:00.000Z"
+      },
+      {
+        id: "rec_init_15",
+        record_type: "會議",
+        status: "待處理",
+        priority: "一般",
+        title: "輔導主任會議-自傷自殺事件處遇",
+        date: "2026-11-03",
+        participants: "大同萬華輔導主任",
+        content: "1.  班級減壓團體\n2. 相關教師與行政人員減壓團體\n3. 個別輔導\n4. 班級道別活動\n5. 學生輔導諮商中心「安心服務機制」\n5-1. 申請非通報\n5-2.24 小時快速進駐\n5-3. 分階段介入歷程：第 1-3 週密集心理減壓處遇，第 4 周至 3 個月高風險個案長程個別諮商。\n6. 核心圈：高危險群：目擊師生、直接衝突學生。次核心圈：當事班級同學、任課教師。擴散圈：全校親師生、家長社群。",
+        decisions: "",
+        notes: "",
+        assignee: "西門輔導室",
+        due_date: "",
+        location: "西門校史室",
+        meeting_time: "14:00",
+        chairperson: "西門國小校長陳治遠",
+        created_at: "2026-11-03T14:00:00.000Z"
+      },
+      {
+        id: "rec_init_16",
+        record_type: "會議",
+        status: "待處理",
+        priority: "一般",
+        title: "主管會議",
+        date: "2026-11-02",
+        participants: "教務主任、學務主任、科中主任、會計主任、幼兒園主任",
+        content: "1. 雙語生活費用與蔡衍榮校友補助作配合。\n2. 科中助理聘用身心障礙者尤佳。",
+        decisions: "",
+        notes: "",
+        assignee: "陳建志",
+        due_date: "",
+        location: "校長室",
+        meeting_time: "09:00",
+        chairperson: "校長",
+        created_at: "2026-11-02T09:00:00.000Z"
+      },
+      {
+        id: "rec_init_17",
+        record_type: "會議",
+        status: "已完成",
+        priority: "一般",
+        title: "115-1 全校教職員會議（10 月第 2 次）",
+        date: "2026-10-28",
+        participants: "全校教職員",
+        content: "1.校長報告：行政減負，離線權\n2.總務處報告\n3.輔導室報告\n4.教務處報告\n5王心怡師提問英文課安排事宜",
+        decisions: "",
+        notes: "",
+        assignee: "文書組",
+        due_date: "",
+        location: "演藝廳",
+        meeting_time: "13:30",
+        chairperson: "校長",
+        created_at: "2026-10-28T13:30:00.000Z"
+      },
+      {
+        id: "rec_init_18",
+        record_type: "會議",
+        status: "待處理",
+        priority: "一般",
+        title: "115-1 期初課發會",
+        date: "2026-10-28",
+        participants: "校內課發會委員，含家長會長",
+        content: "1. 修正本校課程發展委員會設置要點家長代表組成方式\n2. 有關第一學期假日活動補課日期",
+        decisions: "1. 推選246 年級家長代表，家長會長為當然委員。照案通過。\n2. 體表會 11/14 辦理，並於 11/16 補假一日。",
+        notes: "期末校務會議討論通過",
+        assignee: "課程組",
+        due_date: "",
+        location: "本校會議室 2",
+        meeting_time: "13:00",
+        chairperson: "校長",
+        created_at: "2026-10-28T13:00:00.000Z"
+      },
+      {
+        id: "rec_init_19",
+        record_type: "會議",
+        status: "待處理",
+        priority: "一般",
+        title: "115-1交通安全教育委員會",
+        date: "2026-10-27",
+        participants: "校長、四處室主任、生教、學年主任",
+        content: "本學期交通安全教育內容",
+        decisions: "照案通過",
+        notes: "",
+        assignee: "生教組",
+        due_date: "2027-01-16",
+        location: "本校會議室二",
+        meeting_time: "08:10",
+        chairperson: "校長",
+        created_at: "2026-10-27T08:10:00.000Z"
+      }
+    ];
+
+    const LOCAL_KEY = 'meeting_case_records_local_v3';
+    const CLOUD_CFG_KEY = 'meeting_case_cloud_cfg_v3';
+
+    const $ = id => document.getElementById(id);
+    const list = $('record-list');
+    let records = [];
+    let editingId = null;
+    let lastFocus = null;
+    let cloudConfig = { ...DEFAULT_CLOUD_CONFIG };
+
+    const fields = {
+      record_type:'record-type', title:'record-title', date:'record-date',
+      participants:'record-participants', content:'record-content',
+      decisions:'record-decisions', assignee:'record-assignee',
+      status:'record-status', priority:'record-priority',
+      due_date:'record-due', notes:'record-notes', location:'record-location',
+      meeting_time:'record-meeting-time', chairperson:'record-chairperson'
+    };
+
+    function message(text, error = false) {
+      const el = $('feedback');
+      el.textContent = text;
+      el.style.color = error ? '#a13e32' : '#27613e';
+      el.hidden = !text;
+      if (text) {
+        clearTimeout(el._timer);
+        el._timer = setTimeout(() => { el.hidden = true; }, 4000);
+      }
+    }
+
+    function setSyncBadge(state, text) {
+      $('sync-text').textContent = text;
+      const dot = $('sync-dot');
+      dot.className = 'w-2 h-2 rounded-full ' + (
+        state === 'ok' ? 'bg-emerald-400' :
+        state === 'loading' ? 'bg-sky-300 animate-pulse' :
+        state === 'err' ? 'bg-rose-400' : 'bg-amber-300'
+      );
+      $('sync-now-btn').hidden = !getEndpoint();
+    }
+
+    function getEndpoint() {
+      const rawUrl = (cloudConfig.url || '').trim();
+      if (!rawUrl || !rawUrl.startsWith('http')) return null;
+      const base = rawUrl.replace(/\/+$/, '');
+      const path = (cloudConfig.path || FIREBASE_NODE_PATH).replace(/^\/+|\/+$/g, '');
+      return `${base}/${path}.json`;
+    }
+
+    function saveLocal() {
+      localStorage.setItem(LOCAL_KEY, JSON.stringify(records));
+    }
+
+    async function pullCloud(showNotice = false) {
+      const url = getEndpoint();
+      if (!url) return;
+      setSyncBadge('loading', '同步中...');
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          records = data;
+          saveLocal();
+          render();
+          setSyncBadge('ok', '雲端已同步');
+          if (showNotice) message('已從雲端載入最新紀錄。');
+        } else if (data === null || (Array.isArray(data) && data.length === 0)) {
+          await pushCloud();
+          if (showNotice) message('已將目前 19 筆紀錄自動上傳至雲端資料庫。');
+        } else if (typeof data === 'object') {
+          records = Object.values(data);
+          saveLocal();
+          render();
+          setSyncBadge('ok', '雲端已同步');
+        }
+      } catch (err) {
+        console.error(err);
+        setSyncBadge('err', '雲端連線失敗');
+        message('雲端讀取失敗，請確認 Firebase 安全規則是否已發布。', true);
+      }
+    }
+
+    async function pushCloud() {
+      const url = getEndpoint();
+      if (!url) return true;
+      setSyncBadge('loading', '上傳中...');
+      try {
+        const res = await fetch(url, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(records)
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        setSyncBadge('ok', '雲端已同步');
+        return true;
+      } catch (err) {
+        console.error(err);
+        setSyncBadge('err', '上傳失敗');
+        message('已存於本機，但雲端上傳失敗（請檢查網路或資料庫規則）。', true);
+        return false;
+      }
+    }
+
+    function dateLabel(value) { return value || '未設定'; }
+
+    // ====== 統計卡片與狀態篩選聯動 ======
+    function updateStatCardsUI(status) {
+      const cards = [
+        { el: $('stat-card-all'), active: status === '' },
+        { el: $('stat-card-open'), active: status === 'OPEN' || status === '待處理' || status === '進行中' },
+        { el: $('stat-card-done'), active: status === '已完成' }
+      ];
+      cards.forEach(({ el, active }) => el.classList.toggle('is-active', active));
+
+      const badge = $('active-filter-badge');
+      const labelMap = {
+        '': '全部狀態',
+        'OPEN': '進行中 / 待處理',
+        '待處理': '僅待處理',
+        '進行中': '僅進行中',
+        '已完成': '已完成'
+      };
+      badge.textContent = labelMap[status] || status;
+      badge.className = 'pill ' + (
+        status === '已完成' ? 'pill-done' :
+        (status === 'OPEN' || status === '待處理' || status === '進行中') ? 'pill-open' : 'pill-other'
+      );
+    }
+
+    document.querySelectorAll('.stat-link').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const preset = btn.dataset.filterPreset;
+        $('filter-status').value = preset;
+        render();
+        $('list-heading').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+
+    function render() {
+      const q = $('search').value.trim().toLocaleLowerCase();
+      const type = $('filter-type').value;
+      const status = $('filter-status').value;
+
+      updateStatCardsUI(status);
+
+      $('count-all').textContent = records.length;
+      $('count-open').textContent = records.filter(r => r.status !== '已完成').length;
+      $('count-done').textContent = records.filter(r => r.status === '已完成').length;
+
+      const visible = records.filter(r => {
+        const matchType = !type || r.record_type === type;
+        const matchStatus = !status
+          ? true
+          : status === 'OPEN'
+            ? r.status !== '已完成'
+            : r.status === status;
+        const matchQuery = !q || [r.title, r.participants, r.assignee, r.chairperson, r.location, r.content, r.decisions, r.notes]
+          .some(v => String(v || '').toLocaleLowerCase().includes(q));
+        return matchType && matchStatus && matchQuery;
+      }).sort((a, b) =>
+        String(b.date || '').localeCompare(String(a.date || '')) ||
+        String(b.created_at || '').localeCompare(String(a.created_at || ''))
+      );
+
+      $('empty').hidden = visible.length > 0;
+      const existing = new Map([...list.children].map(el => [el.dataset.recordId, el]));
+
+      visible.forEach(r => {
+        let card = existing.get(r.id);
+        if (!card) {
+          card = $('record-template').content.firstElementChild.cloneNode(true);
+          card.dataset.recordId = r.id;
+          list.appendChild(card);
+        } else {
+          existing.delete(r.id);
+        }
+
+        const set = (key, value) => {
+          const el = card.querySelector(`[data-field="${key}"]`);
+          if (el && el.textContent !== value) el.textContent = value;
+        };
+
+        set('type', r.record_type || '紀錄');
+        set('status', r.status || '待處理');
+        set('priority', r.priority || '一般');
+
+        const statusBadge = card.querySelector('[data-field="status"]');
+        statusBadge.className = 'pill ' + (r.status === '已完成' ? 'pill-done' : r.status === '進行中' ? 'pill-open' : 'pill-other');
+
+        const prioBadge = card.querySelector('[data-field="priority"]');
+        prioBadge.className = 'pill ' + (r.priority === '緊急' ? 'pill-urgent' : r.priority === '重要' ? 'pill-high' : 'pill-other');
+
+        set('title', r.title || '未命名紀錄');
+        set('meta', `${dateLabel(r.date)}${r.participants ? '  ·  相關人員：' + r.participants : ''}`);
+
+        for (const key of ['content', 'decisions', 'notes']) {
+          set(key, r[key] || '');
+          card.querySelector(`[data-block="${key}"]`).hidden = !r[key];
+        }
+
+        set('assignee', `承辦人：${r.assignee || '未指派'}`);
+        set('due', `預計完成：${dateLabel(r.due_date)}`);
+        set('location', r.location ? `地點：${r.location}` : '');
+        set('meeting_time', r.meeting_time ? `時間：${r.meeting_time}` : '');
+        set('chairperson', r.chairperson ? `主持人：${r.chairperson}` : '');
+      });
+
+      existing.forEach(el => el.remove());
+      visible.forEach(r => {
+        const el = [...list.children].find(node => node.dataset.recordId === r.id);
+        if (el) list.appendChild(el);
+      });
+    }
+
+    // ====== 編輯器控制 ======
+    function openEditor(record = null) {
+      lastFocus = document.activeElement;
+      editingId = record ? record.id : null;
+      $('record-form').reset();
+      Object.entries(fields).forEach(([key, id]) => {
+        if (record) $(id).value = record[key] || '';
+      });
+      if (!record) {
+        $('record-date').value = new Date().toLocaleDateString('en-CA');
+        $('record-type').value = '會議';
+        $('record-status').value = '待處理';
+        $('record-priority').value = '一般';
+      }
+      $('editor-title-new').hidden = !!record;
+      $('editor-title-edit').hidden = !record;
+      $('editor').hidden = false;
+      $('record-title').focus();
+    }
+
+    function closeEditor() {
+      $('editor').hidden = true;
+      $('abandon-confirmation').hidden = true;
+      editingId = null;
+      if (lastFocus && lastFocus.isConnected) lastFocus.focus();
+    }
+
+    function hasDraftContent() {
+      return ['record-title','record-participants','record-content','record-decisions','record-assignee','record-location','record-meeting-time','record-due','record-notes','record-chairperson'].some(id => $(id).value.trim());
+    }
+
+    function requestAbandon() {
+      if (editingId || !hasDraftContent()) { closeEditor(); return; }
+      $('abandon-confirmation').hidden = false;
+      $('keep-editor').focus();
+    }
+
+    $('new-button').addEventListener('click', () => openEditor());
+    $('close-editor').addEventListener('click', requestAbandon);
+    $('cancel-editor').addEventListener('click', requestAbandon);
+    $('abandon-editor').addEventListener('click', requestAbandon);
+    $('keep-editor').addEventListener('click', () => { $('abandon-confirmation').hidden = true; $('record-title').focus(); });
+    $('confirm-abandon').addEventListener('click', closeEditor);
+    $('editor').addEventListener('click', e => { if (e.target === $('editor')) requestAbandon(); });
+
+    for (const id of ['search', 'filter-type', 'filter-status']) {
+      $(id).addEventListener(id === 'search' ? 'input' : 'change', render);
+    }
+
+    $('record-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const button = $('save-button');
+      button.disabled = true;
+      const payload = Object.fromEntries(Object.entries(fields).map(([key, id]) => [key, $(id).value.trim()]));
+
+      try {
+        if (editingId) {
+          const idx = records.findIndex(r => r.id === editingId);
+          if (idx === -1) { message('找不到此紀錄。', true); return; }
+          records[idx] = { ...records[idx], ...payload, updated_at: new Date().toISOString() };
+        } else {
+          records.unshift({
+            id: 'rec_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+            ...payload,
+            created_at: new Date().toISOString()
+          });
+        }
+        saveLocal();
+        render();
+        closeEditor();
+        const synced = await pushCloud();
+        if (synced) message(getEndpoint() ? '紀錄已儲存並同步至雲端。' : '紀錄已儲存於本機。');
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    // ====== 表格化預覽與列印 ======
+    function showPreview(record, autoPrint = false) {
+      $('preview-doc-heading').textContent = record.record_type === '個案' ? '個案輔導與追蹤紀錄單' : '會議紀錄單';
+      const values = {
+        'preview-record-title': record.title || '未命名紀錄',
+        'preview-type': record.record_type || '未設定',
+        'preview-date': dateLabel(record.date),
+        'preview-chairperson': record.chairperson || '—',
+        'preview-assignee': record.assignee || '未指派',
+        'preview-location': record.location || '—',
+        'preview-time': record.meeting_time || '—',
+        'preview-participants': record.participants || '—',
+        'preview-content': record.content || '（無內容）',
+        'preview-decisions': record.decisions || '（無決議事項）',
+        'preview-due': dateLabel(record.due_date),
+        'preview-status': record.status || '待處理',
+        'preview-priority': record.priority || '一般',
+        'preview-notes': record.notes || ''
+      };
+      Object.entries(values).forEach(([id, value]) => { $(id).textContent = value; });
+      $('preview-notes-row').hidden = !record.notes;
+      $('preview').hidden = false;
+      if (autoPrint) {
+        setTimeout(() => window.print(), 120);
+      } else {
+        $('close-preview').focus();
+      }
+    }
+
+    $('close-preview').addEventListener('click', () => { $('preview').hidden = true; });
+    $('print-preview').addEventListener('click', () => window.print());
+    $('preview').addEventListener('click', e => { if (e.target === $('preview')) $('preview').hidden = true; });
+
+    // ====== 卡片按鈕事件 ======
+    list.addEventListener('click', async e => {
+      const button = e.target.closest('button[data-action]');
+      if (!button) return;
+      const card = button.closest('[data-record-id]');
+      const record = records.find(r => r.id === card.dataset.recordId);
+      const action = button.dataset.action;
+
+      if (action === 'edit' && record) openEditor(record);
+      if (action === 'preview' && record) showPreview(record, false);
+      if (action === 'print' && record) showPreview(record, true);
+      if (action === 'delete') card.querySelector('[data-confirm]').hidden = false;
+      if (action === 'cancel-delete') card.querySelector('[data-confirm]').hidden = true;
+      if (action === 'confirm-delete' && record) {
+        button.disabled = true;
+        records = records.filter(r => r.id !== record.id);
+        saveLocal();
+        render();
+        const synced = await pushCloud();
+        if (synced) message('紀錄已刪除。');
+      }
+    });
+
+    // ====== 雲端設定與備份 ======
+    $('open-cloud-btn').addEventListener('click', () => {
+      $('cloud-url').value = getEndpoint() ? cloudConfig.url : '';
+      $('cloud-path').value = cloudConfig.path || FIREBASE_NODE_PATH;
+      $('cloud-modal').hidden = false;
+    });
+    const closeCloud = () => { $('cloud-modal').hidden = true; };
+    $('close-cloud').addEventListener('click', closeCloud);
+    $('cancel-cloud').addEventListener('click', closeCloud);
+    $('cloud-modal').addEventListener('click', e => { if (e.target === $('cloud-modal')) closeCloud(); });
+
+    $('save-cloud').addEventListener('click', async () => {
+      const url = $('cloud-url').value.trim();
+      const path = $('cloud-path').value.trim() || FIREBASE_NODE_PATH;
+      if (!url) { alert('請輸入 Firebase Database 網址'); return; }
+      cloudConfig = { url, path };
+      localStorage.setItem(CLOUD_CFG_KEY, JSON.stringify(cloudConfig));
+      closeCloud();
+      await pullCloud(true);
+    });
+
+    $('disconnect-cloud').addEventListener('click', () => {
+      cloudConfig = { url: '', path: FIREBASE_NODE_PATH };
+      localStorage.setItem(CLOUD_CFG_KEY, JSON.stringify(cloudConfig));
+      setSyncBadge('local', '本機模式');
+      closeCloud();
+      message('已切換為本機儲存模式。');
+    });
+
+    $('sync-now-btn').addEventListener('click', () => pullCloud(true));
+
+    $('restore-initial').addEventListener('click', async () => {
+      if (!confirm('確定要重新載入內建的 19 筆初始紀錄嗎？（將會覆蓋目前畫面資料）')) return;
+      records = JSON.parse(JSON.stringify(INITIAL_RECORDS));
+      saveLocal();
+      render();
+      await pushCloud();
+      closeCloud();
+      message('已還原內建的 19 筆紀錄。');
+    });
+
+    $('export-json').addEventListener('click', () => {
+      const blob = new Blob([JSON.stringify(records, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `會議與個案紀錄備份_${new Date().toLocaleDateString('en-CA')}.json`;
+      a.click();
+    });
+
+    $('import-json').addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async ev => {
+        try {
+          const parsed = JSON.parse(ev.target.result);
+          if (!Array.isArray(parsed)) throw new Error();
+          records = parsed;
+          saveLocal();
+          render();
+          await pushCloud();
+          closeCloud();
+          message(`已匯入 ${records.length} 筆紀錄。`);
+        } catch {
+          alert('JSON 檔案格式不正確。');
+        }
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+    });
+
+    // ====== 初始化 ======
+    (async () => {
+      const savedCfg = localStorage.getItem(CLOUD_CFG_KEY);
+      if (savedCfg) {
+        try {
+          const parsedCfg = JSON.parse(savedCfg);
+          if (parsedCfg.url) cloudConfig = parsedCfg;
+        } catch {}
+      }
+      const savedLocal = localStorage.getItem(LOCAL_KEY);
+      if (savedLocal) {
+        try {
+          const parsed = JSON.parse(savedLocal);
+          records = (Array.isArray(parsed) && parsed.length > 0) ? parsed : JSON.parse(JSON.stringify(INITIAL_RECORDS));
+        } catch {
+          records = JSON.parse(JSON.stringify(INITIAL_RECORDS));
+        }
+      } else {
+        records = JSON.parse(JSON.stringify(INITIAL_RECORDS));
+        saveLocal();
+      }
+      render();
+      if (getEndpoint()) {
+        await pullCloud(false);
+      } else {
+        setSyncBadge('local', '本機模式');
+      }
+    })();
+  </script>
+</body>
+</html>
